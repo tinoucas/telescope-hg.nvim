@@ -423,7 +423,7 @@ end
 M.files = function(opts)
     opts = opts or {}
 	root = get_root(opts)
-    local show_untracked = utils.get_default(opts.show_untracked, true)
+    local show_untracked = false -- utils.get_default(opts.show_untracked, true)
 
     local results = utils.get_os_command_output({'hg', 'files'}, root)
     if show_untracked then
