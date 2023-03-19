@@ -10,13 +10,19 @@ local utils = require "telescope.utils"
 local strings = require "plenary.strings"
 
 local function get_root(opts)
-    return utils.get_os_command_output({'hg', 'root'}, opts.cwd)[1] .. '/'
+	local dir = vim.fn.expand('%:h')
+	if dir == "" then
+		dir = opts.cwd
+	end
+    local output = utils.get_os_command_output({'sh', '-c', "cd "..dir.." && hg root"}, opts.cwd)[1] .. '/'
+	return output
 end
 
 local M = {};
 
 M.logthis = function(opts)
     opts = opts or {}
+	root = get_root(opts)
     opts.current_file = vim.F.if_nil(opts.current_file, vim.fn.expand "%:p")
     opts.entry_maker = function(entry)
         if entry == "" then return nil end
@@ -68,7 +74,7 @@ M.logthis = function(opts)
                     putils.job_maker(cmd, self.state.bufnr, {
                         value = entry.value,
                         bufname = self.state.bufname,
-                        cwd = opts.cwd
+                        cwd = root
                     })
                     putils.regex_highlighter(self.state.bufnr, "diff")
                 end
@@ -79,7 +85,7 @@ M.logthis = function(opts)
             local get_buffer_of_orig = function(selection)
                 local content = utils.get_os_command_output({
                     "hg", "cat", "-r", selection.value, selection.current_file
-                }, opts.cwd)
+                }, root)
                 local bufnr = vim.api.nvim_create_buf(false, true)
                 vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, content)
                 vim.api.nvim_buf_set_name(bufnr, "Original")
@@ -118,7 +124,7 @@ M.logthis = function(opts)
                 actions.close(prompt_bufnr)
                 print('revert to rev ' .. selection.value)
                 utils.get_os_command_output({
-                    "hg", "revert", '-r', selection.value,
+                    "sh", "-c", "cd "..root.." && hg revert -r "..selection.value,
                     selection.current_file
                 }, cwd)
             end
@@ -143,6 +149,8 @@ end
 
 local checkout = function(prompt_bufnr)
     local cwd = action_state.get_current_picker(prompt_bufnr).cwd
+    opts = opts or {}
+	root = get_root(opts)
     local selection = action_state.get_selected_entry()
     if selection == nil then
         actions.close(prompt_bufnr)
@@ -158,7 +166,7 @@ local checkout = function(prompt_bufnr)
     actions.close(prompt_bufnr)
     print('checkout rev ' .. rev)
     local msg, ret, stderr = utils.get_os_command_output({
-        "hg", "checkout", '-r', rev
+        "sh", "-c", "cd "..root.." && hg checkout -r "..rev
     }, cwd)
     if ret == 0 then
         print(msg[1])
@@ -195,6 +203,7 @@ end
 
 M.log = function(opts)
     opts = opts or {}
+	root = get_root(opts)
     local command = {
         "hg", "log", "-G",
         '--template={rev} {if(tags,\'[{tags}] \')}{desc|strip|firstline} ({author|user} {date|age})\n'
@@ -224,7 +233,7 @@ M.log = function(opts)
                     putils.job_maker(cmd, self.state.bufnr, {
                         value = rev,
                         bufname = self.state.bufname,
-                        cwd = opts.cwd
+                        cwd = root
                     })
                     putils.regex_highlighter(self.state.bufnr, "diff")
                 end
@@ -270,11 +279,12 @@ end
 
 M.branches = function(opts)
     opts = opts or {}
+	root = get_root(opts)
     local command = {
         "hg", "branches",
         '--template=\'{branch}\'\'{date|isodate}\'\'{date(date, \'%Y-%m-%d %H:%M\')}\'\'{rev}\'\'{node|short}\'\'{graphnode}\'\'{user|person}\'\n'
     }
-    local output = utils.get_os_command_output(command, opts.cwd)
+    local output = utils.get_os_command_output(command, root)
     local results = {}
     local widths = {branch = 0}
     for _, line in ipairs(output) do
@@ -332,7 +342,7 @@ M.branches = function(opts)
                     putils.job_maker(cmd, self.state.bufnr, {
                         value = entry.branch,
                         bufname = self.state.bufname,
-                        cwd = opts.cwd,
+                        cwd = root,
                         callback = function(bufnr, content)
                             if not content then
                                 return
@@ -356,7 +366,7 @@ M.status = function(opts)
     opts = opts or {}
     local root = get_root(opts)
     local command = {"hg", "status"}
-    local output = utils.get_os_command_output(command, opts.cwd)
+    local output = utils.get_os_command_output(command, root)
     local displayer = entry_display.create {
         separator = " ",
         items = {{width = 3}, {remaining = true}}
@@ -400,7 +410,7 @@ M.status = function(opts)
                     putils.job_maker(cmd, self.state.bufnr, {
                         value = entry.value,
                         bufname = self.state.bufname,
-                        cwd = opts.cwd
+                        cwd = root
                     })
                     putils.regex_highlighter(self.state.bufnr, "diff")
                 end
@@ -412,12 +422,13 @@ end
 
 M.files = function(opts)
     opts = opts or {}
+	root = get_root(opts)
     local show_untracked = utils.get_default(opts.show_untracked, true)
 
-    local results = utils.get_os_command_output({'hg', 'files'}, opts.cwd)
+    local results = utils.get_os_command_output({'hg', 'files'}, root)
     if show_untracked then
         local untracked = utils.get_os_command_output({'hg', 'status', '-u'},
-                                                      opts.cwd)
+                                                      root)
         if untracked ~= nil and #untracked ~= 0 then
             for k, v in pairs(untracked) do
                 v = v:gsub("^%s*?%s*", "")
