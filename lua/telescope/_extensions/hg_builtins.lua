@@ -23,6 +23,7 @@ local M = {};
 M.logthis = function(opts)
     opts = opts or {}
 	root = get_root(opts)
+	opts.cwd = root
     opts.current_file = vim.F.if_nil(opts.current_file, vim.fn.expand "%:p")
     opts.entry_maker = function(entry)
         if entry == "" then return nil end
@@ -115,7 +116,6 @@ M.logthis = function(opts)
                 end)
 
             local function revert(prompt_bufnr)
-                local cwd = action_state.get_current_picker(prompt_bufnr).cwd
                 local selection = action_state.get_selected_entry()
                 if selection == nil then
                     print "[telescope] Nothing currently selected"
@@ -124,9 +124,9 @@ M.logthis = function(opts)
                 actions.close(prompt_bufnr)
                 print('revert to rev ' .. selection.value)
                 utils.get_os_command_output({
-                    "sh", "-c", "cd "..root.." && hg revert -r "..selection.value,
+                    "hg", "revert", "-r", selection.value.." "..
                     selection.current_file
-                }, cwd)
+                }, root)
             end
 
             map("i", "<c-r>", revert)
@@ -148,9 +148,9 @@ local function entry_get_rev(entry)
 end
 
 local checkout = function(prompt_bufnr)
-    local cwd = action_state.get_current_picker(prompt_bufnr).cwd
     opts = opts or {}
 	root = get_root(opts)
+	opts.cwd = root
     local selection = action_state.get_selected_entry()
     if selection == nil then
         actions.close(prompt_bufnr)
@@ -166,8 +166,8 @@ local checkout = function(prompt_bufnr)
     actions.close(prompt_bufnr)
     print('checkout rev ' .. rev)
     local msg, ret, stderr = utils.get_os_command_output({
-        "sh", "-c", "cd "..root.." && hg checkout -r "..rev
-    }, cwd)
+        "hg", "checkout", "-r", rev
+    }, root)
     if ret == 0 then
         print(msg[1])
     else
@@ -204,6 +204,7 @@ end
 M.log = function(opts)
     opts = opts or {}
 	root = get_root(opts)
+	opts.cwd = root
     local command = {
         "hg", "log", "-G",
         '--template={rev} {if(tags,\'[{tags}] \')}{desc|strip|firstline} ({author|user} {date|age})\n'
@@ -280,6 +281,7 @@ end
 M.branches = function(opts)
     opts = opts or {}
 	root = get_root(opts)
+	opts.cwd = root
     local command = {
         "hg", "branches",
         '--template=\'{branch}\'\'{date|isodate}\'\'{date(date, \'%Y-%m-%d %H:%M\')}\'\'{rev}\'\'{node|short}\'\'{graphnode}\'\'{user|person}\'\n'
@@ -365,6 +367,7 @@ end
 M.status = function(opts)
     opts = opts or {}
     local root = get_root(opts)
+	opts.cwd = root
     local command = {"hg", "status"}
     local output = utils.get_os_command_output(command, root)
     local displayer = entry_display.create {
@@ -423,6 +426,7 @@ end
 M.files = function(opts)
     opts = opts or {}
 	root = get_root(opts)
+	opts.cwd = root
     local show_untracked = false -- utils.get_default(opts.show_untracked, true)
 
     local results = utils.get_os_command_output({'hg', 'files'}, root)
